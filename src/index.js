@@ -7,21 +7,33 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+
+// ✅ Allowed frontend URLs (local + Render deployed)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ai-tour-guide-frontend-o73i.onrender.com" // <-- put YOUR actual frontend URL
+];
+
+// ✅ CORS Middleware (Fixes “Failed to fetch”)
 app.use(
   cors({
-    origin: "http://localhost:5173", // your React app
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // allow server/test tools
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
   })
 );
 
 // Groq client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Simple health route so browser GET / works
+// Simple test route
 app.get("/", (req, res) => {
   res.send("✅ Groq AI Trip Planner backend is running");
 });
 
-// Main AI Trip Planner route
+// Main Trip Planner route
 app.post("/api/trips", async (req, res) => {
   try {
     const { city, days, budget, travelers, interests, stayType } = req.body;
@@ -33,24 +45,14 @@ app.post("/api/trips", async (req, res) => {
     }
 
     const prompt = `
-You are an Expert AI Travel Planner. Create an extremely detailed, hyper-realistic, time-wise, distance-wise, cost-wise trip plan.
+You are an Expert AI Travel Planner. Create an extremely detailed trip plan.
 
---------------------------------------
-USER INPUT:
 City: ${city}
 Days: ${days}
-Total Budget: ₹${budget}
+Budget: ₹${budget}
 Travellers: ${travelers}
 Interests: ${interests}
 Stay Type: ${stayType}
-
---------------------------------------
-STRICT OUTPUT REQUIREMENTS:
-
-1) TRIP SUMMARY
-...
-
-Generate a PERFECT, HUMAN-LIKE trip plan.
 `;
 
     const completion = await groq.chat.completions.create({
@@ -71,7 +73,7 @@ Generate a PERFECT, HUMAN-LIKE trip plan.
   }
 });
 
-// Start server – listen on localhost:5000
+// Server start
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, "0.0.0.0", () => {
